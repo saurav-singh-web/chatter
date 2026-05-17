@@ -1001,7 +1001,7 @@ function App() {
       <div className="relative z-10 w-full max-w-[340px] mx-auto min-h-screen flex flex-col justify-center gap-7 py-8">
 
         {/* Header Section */}
-        <div className="flex items-center gap-4 mb-2">
+        <div className="flex items-center justify-center gap-4 mb-2">
           {/* Logo */}
           <div className="w-[48px] h-[48px] bg-[#160f22] rounded-[14px] flex items-center justify-center border border-[#271b38] shadow-[0_4px_16px_rgba(0,0,0,0.5)]">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="url(#logo-grad)" xmlns="http://www.w3.org/2000/svg">
@@ -1022,12 +1022,12 @@ function App() {
         </div>
 
         {/* Hero Text */}
-        <div className="space-y-4">
+        <div className="space-y-4 text-center">
           <h2 className="text-white text-[34px] sm:text-[38px] font-bold leading-[1.08] tracking-[-0.03em]">
             Private messaging,<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff2d55] to-[#c026d3]">elevated.</span>
           </h2>
-          <p className="text-[#84799f] text-[15px] mt-4 max-w-[290px] leading-[1.65]">
+          <p className="text-[#84799f] text-[15px] mt-4 leading-[1.65]">
             A cleaner, more premium way to stay connected.
           </p>
         </div>
