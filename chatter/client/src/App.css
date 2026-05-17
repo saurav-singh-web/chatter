@@ -1,0 +1,15 @@
+/* App-specific custom animations and utility styles */
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+.premium-glow-text {
+  text-shadow: 0 0 12px rgba(255, 45, 85, 0.4);
+}

@@ -1,0 +1,105 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+
+/* Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  background: #090511;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+/* Remove Vite defaults if present */
+#root {
+  max-width: none !important;
+  width: 100%;
+  min-height: 100vh;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4a2060;
+  border-radius: 999px;
+}
+
+/* Message bubbles */
+.bubble-mine {
+  background: linear-gradient(
+    135deg,
+    #c026d3,
+    #9333ea,
+    #e11d48
+  );
+}
+
+.bubble-theirs {
+  background: #1e1535;
+}
+
+/* Premium input glow */
+.input-glow:focus {
+  box-shadow:
+    0 0 0 2px rgba(192,38,211,.35),
+    0 0 24px rgba(192,38,211,.15);
+}
+
+/* Better text rendering */
+body,
+button,
+input {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Premium Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  15% { transform: rotate(-10deg); }
+  30% { transform: rotate(8deg); }
+  45% { transform: rotate(-6deg); }
+  60% { transform: rotate(4deg); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-wiggle {
+  animation: wiggle 2s ease-in-out infinite;
+}
+
+@supports (-webkit-touch-callout: none) {
+  .min-h-dvh {
+    min-height: -webkit-fill-available;
+  }
+}
