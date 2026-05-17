@@ -7,6 +7,7 @@ const { WebSocketServer } = require("ws");
 const mongoose = require("mongoose");
 const User = require("./models/User");
 const bcrypt = require("bcryptjs");
+const path = require("path");
 
 const app = express();
 app.use(cors());
@@ -538,7 +539,13 @@ app.delete("/message/:id", express.json(), async (req, res) => {
   }
 });
 
-server.listen(8080, () => {
-  console.log("Server running on http://localhost:8080");
+
+app.use(express.static(path.join(__dirname, "../client/dist")));
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "../client/dist", "index.html"));
 });
 
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

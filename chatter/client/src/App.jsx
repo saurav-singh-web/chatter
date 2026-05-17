@@ -255,7 +255,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const socket = new WebSocket("ws://localhost:8080");
+    const socket = new WebSocket(
+      import.meta.env.VITE_WS_URL ||
+      `ws${location.protocol === 'https:' ? 's' : ''}://${location.host}`
+    );
     socketRef.current = socket;
 
     socket.onopen = () => {
@@ -521,9 +524,9 @@ function App() {
       setLoadingHistory(true);
 
       try {
-        let endpoint = `http://localhost:8080/history/group?before=${oldestMessage.timestamp}`;
+        let endpoint = `${import.meta.env.VITE_API_URL || ''}/history/group?before=${oldestMessage.timestamp}`;
         if (activeChat !== "general") {
-          endpoint = `http://localhost:8080/history/private?user1=${usernameRef.current}&user2=${activeChat}&before=${oldestMessage.timestamp}`;
+          endpoint = `${import.meta.env.VITE_API_URL || ''}/history/private?user1=${usernameRef.current}&user2=${activeChat}&before=${oldestMessage.timestamp}`;
         }
 
         const res = await fetch(endpoint);
@@ -557,7 +560,8 @@ function App() {
     const endpoint = authMode === "login" ? "/login" : "/register";
 
     try {
-      const res = await fetch(`http://localhost:8080${endpoint}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ''}${endpoint}`, {
+
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
@@ -605,7 +609,7 @@ function App() {
     reader.onload = async (event) => {
       const base64 = event.target.result;
       try {
-        const res = await fetch("http://localhost:8080/user/avatar", {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/user/avatar`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username, avatar: base64 }),
@@ -804,8 +808,7 @@ function App() {
 
   async function fetchPrivateHistory(otherUser) {
     try {
-      const res = await fetch(
-        `http://localhost:8080/history/private?user1=${usernameRef.current}&user2=${otherUser}`
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/history/private?user1=${usernameRef.current}&user2=${otherUser}`
       );
       const data = await res.json();
       setMessages((prev) => ({
@@ -879,7 +882,7 @@ function App() {
 
   const handleDelete = async (id) => {
     try {
-      await fetch(`http://localhost:8080/message/${id}`, {
+      await fetch(`${import.meta.env.VITE_API_URL || ''}/message/${id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username }),
@@ -894,7 +897,7 @@ function App() {
     if (!editText.trim()) return;
 
     try {
-      await fetch(`http://localhost:8080/message/${editingId}`, {
+      await fetch(`${import.meta.env.VITE_API_URL || ''}/message/${editingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: editText, username }),
