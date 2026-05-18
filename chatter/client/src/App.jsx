@@ -976,7 +976,7 @@ function App() {
 
   const AuthUI = (
     <div
-      className="relative min-h-screen w-full flex flex-col px-6 pt-12 pb-8 overflow-hidden bg-[#07030e]"
+      className="relative min-h-screen w-full flex flex-col items-center justify-center px-6 py-12 overflow-hidden bg-[#07030e]"
       style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
     >
       {/* Top right glow */}
@@ -998,10 +998,10 @@ function App() {
       <div className="absolute top-[-10%] right-[-10%] w-[400px] h-[400px] rounded-full border-[1px] border-[rgba(255,255,255,0.02)] pointer-events-none" style={{ boxShadow: 'inset 0 0 40px rgba(217,70,239,0.1)' }}></div>
       <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] rounded-full border-[1px] border-[rgba(255,255,255,0.02)] pointer-events-none" style={{ boxShadow: 'inset 0 0 40px rgba(255,45,85,0.1)' }}></div>
 
-      <div className="relative z-10 w-full max-w-[340px] mx-auto min-h-screen flex flex-col justify-center gap-7 py-8">
+      <div className="relative z-10 w-full max-w-[400px] mx-auto flex flex-col justify-center items-center gap-7 py-8">
 
         {/* Header Section */}
-        <div className="flex items-center justify-center gap-4 mb-2">
+        <div className="flex items-center justify-center gap-4 mb-2 w-full">
           {/* Logo */}
           <div className="w-[48px] h-[48px] bg-[#160f22] rounded-[14px] flex items-center justify-center border border-[#271b38] shadow-[0_4px_16px_rgba(0,0,0,0.5)]">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="url(#logo-grad)" xmlns="http://www.w3.org/2000/svg">
@@ -1022,7 +1022,7 @@ function App() {
         </div>
 
         {/* Hero Text */}
-        <div className="space-y-4 text-center">
+        <div className="space-y-4 text-center w-full">
           <h2 className="text-white text-[34px] sm:text-[38px] font-bold leading-[1.08] tracking-[-0.03em]">
             Private messaging,<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff2d55] to-[#c026d3]">elevated.</span>
@@ -1033,7 +1033,7 @@ function App() {
         </div>
 
         {/* Auth Toggle */}
-        <div className="flex bg-[#0f0817] rounded-[18px] p-[4px] h-[56px] border border-[#26173b] shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] relative">
+        <div className="w-full flex bg-[#0f0817] rounded-[18px] p-[4px] h-[56px] border border-[#26173b] shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] relative">
           <button
             onClick={() => { setAuthMode('login'); setAuthError(''); }}
             className={`flex-1 h-full flex items-center justify-center gap-2 rounded-[14px] text-[16px] font-bold transition-all duration-300 relative z-10 ${authMode === 'login' ? 'text-white' : 'text-[#84799f] hover:text-[#a599c2]'}`}
@@ -1057,9 +1057,9 @@ function App() {
         </div>
 
         {/* Form */}
-        <div className="space-y-6">
+        <div className="space-y-6 w-full">
           <div>
-            <label className="block text-[#84799f] text-[10px] font-bold tracking-[0.16em] mb-2">USERNAME</label>
+            <label className="block text-[#84799f] text-[10px] font-bold tracking-[0.16em] mb-2 text-center">USERNAME</label>
             <div className="relative flex items-center">
               <div className="absolute left-[16px] text-[#84799f]">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
@@ -1076,7 +1076,7 @@ function App() {
           </div>
 
           <div>
-            <label className="block text-[#84799f] text-[10px] font-bold tracking-[0.16em] mb-2">PASSWORD</label>
+            <label className="block text-[#84799f] text-[10px] font-bold tracking-[0.16em] mb-2 text-center">PASSWORD</label>
             <div className="relative flex items-center">
               <div className="absolute left-[16px] text-[#84799f]">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
@@ -1116,7 +1116,7 @@ function App() {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
         </button>
 
-        <div className="mt-2 flex items-center justify-center gap-2 text-[#84799f] text-[12px] font-medium">
+        <div className="mt-2 w-full flex items-center justify-center gap-2 text-[#84799f] text-[12px] font-medium">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
           Your privacy is our priority.
         </div>
@@ -1433,7 +1433,7 @@ function App() {
               const senderAvatar = senderObj && typeof senderObj !== "string" ? senderObj.avatar : "";
 
               return (
-                <div key={index} className={`flex min-w-0 px-2 ${isMe ? "justify-end pl-10" : "justify-start pr-10"} py-1`}>
+                <div key={index} className={`flex min-w-0 px-2 ${isMe ? "justify-end" : "justify-start"} py-1`}>
                   <div className="flex items-end gap-2.5 group/msg max-w-full">
                     {!isMe && (
                       <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#ff2d55] to-[#c026d3] flex items-center justify-center text-white text-[11px] font-black shrink-0 relative overflow-hidden mb-1 shadow-md">
@@ -1465,7 +1465,7 @@ function App() {
                       onTouchMove={handleTouchMove}
                       onTouchEnd={handleTouchEnd}
                       style={{ padding: '16px 22px 10px 22px' }}
-                      className={`rounded-2xl min-w-[100px] max-w-[85vw] md:max-w-[420px] w-fit flex flex-col gap-1.5 cursor-pointer relative transition-all shadow-lg overflow-visible ${isMe
+                      className={`rounded-2xl min-w-[80px] max-w-[70vw] md:max-w-[420px] w-fit flex flex-col gap-1.5 cursor-pointer relative transition-all shadow-lg overflow-visible ${isMe
                         ? "bg-gradient-to-br from-[#ff2d55] to-[#c026d3] text-white rounded-tr-sm shadow-[0_2px_12px_rgba(192,38,211,0.25)]"
                         : "bg-[#130b20] border border-[#23153d] text-white rounded-tl-sm"
                         }`}
@@ -1613,7 +1613,7 @@ function App() {
               const senderAvatar = senderObj && typeof senderObj !== "string" ? senderObj.avatar : "";
 
               return (
-                <div key={index} className={`flex min-w-0 px-2 ${isMe ? "justify-end pl-10" : "justify-start pr-10"} py-1`}>
+                <div key={index} className={`flex min-w-0 px-2 ${isMe ? "justify-end" : "justify-start"} py-1`}>
                   <div className="flex items-end gap-2.5 group/msg max-w-full">
                     {!isMe && (
                       <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#2563eb] to-[#a855f7] flex items-center justify-center text-white text-[11px] font-black shrink-0 relative overflow-hidden mb-1 shadow-md">
@@ -1916,7 +1916,7 @@ function App() {
         )}
 
         {/* Floating Glassmorphic Input Bar (95% wide, rounded) */}
-        <div className={`shrink-0 relative z-10 w-[95%] mx-auto mb-4 bg-[#0a0514]/60 backdrop-blur-xl border border-[#2a1a45] px-4 py-3 flex gap-3 items-center shadow-[0_8px_32px_rgba(0,0,0,0.4)] transition-all ${replyTo || selectedImage || selectedFile || audioPreview ? "rounded-b-2xl border-t-0" : "rounded-3xl"}`}>
+        <div className={`shrink-0 relative z-10 w-[96%] mx-auto mb-3 bg-[#0a0514]/60 backdrop-blur-xl border border-[#2a1a45] px-2 md:px-4 py-2 md:py-3 flex gap-1.5 md:gap-3 items-center shadow-[0_8px_32px_rgba(0,0,0,0.4)] transition-all ${replyTo || selectedImage || selectedFile || audioPreview ? "rounded-b-2xl border-t-0" : "rounded-3xl"}`}>
           {recording ? (
             <div className="flex-1 flex items-center gap-3 bg-[#ff2d55]/10 border border-[#ff2d55]/30 rounded-2xl h-[46px] px-5 text-white">
               <span className="w-2.5 h-2.5 rounded-full bg-[#ff2d55] animate-ping shrink-0"></span>
@@ -1931,7 +1931,7 @@ function App() {
           ) : (
             <>
               {/* Photo Upload Attachment Button */}
-              <label className="text-[#84799f] hover:text-[#ff2d55] hover:bg-[#ff2d55]/10 w-[46px] h-[46px] rounded-full border border-[#2a1a45] hover:border-[#ff2d55]/30 flex items-center justify-center shrink-0 cursor-pointer transition-all active:scale-95 shadow-sm" title="Share Photo">
+              <label className="text-[#84799f] hover:text-[#ff2d55] hover:bg-[#ff2d55]/10 w-[38px] h-[38px] md:w-[46px] md:h-[46px] rounded-full border border-[#2a1a45] hover:border-[#ff2d55]/30 flex items-center justify-center shrink-0 cursor-pointer transition-all active:scale-95 shadow-sm" title="Share Photo">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                   <circle cx="8.5" cy="8.5" r="1.5"></circle>
@@ -1947,7 +1947,7 @@ function App() {
 
 
               {/* Universal File Upload Button */}
-              <label className="text-[#84799f] hover:text-[#c026d3] hover:bg-[#c026d3]/10 w-[46px] h-[46px] rounded-full border border-[#2a1a45] hover:border-[#c026d3]/30 flex items-center justify-center shrink-0 cursor-pointer transition-all active:scale-95 shadow-sm" title="Share Any File (Audio, Pre-recorded, Docs...)">
+              <label className="text-[#84799f] hover:text-[#c026d3] hover:bg-[#c026d3]/10 w-[38px] h-[38px] md:w-[46px] md:h-[46px] rounded-full border border-[#2a1a45] hover:border-[#c026d3]/30 flex items-center justify-center shrink-0 cursor-pointer transition-all active:scale-95 shadow-sm" title="Share Any File (Audio, Pre-recorded, Docs...)">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
                 </svg>
@@ -1969,13 +1969,13 @@ function App() {
                   }
                 }}
                 onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
-                className="flex-1 bg-[#110a1a]/80 border border-[#221533] rounded-2xl h-[46px] px-5 text-white placeholder-[#584d72] focus:outline-none focus:border-[#c026d3] focus:ring-1 focus:ring-[#c026d3] transition-all text-[14.5px]"
+                className="flex-1 min-w-0 bg-[#110a1a]/80 border border-[#221533] rounded-2xl h-[42px] md:h-[46px] px-3 md:px-5 text-white placeholder-[#584d72] focus:outline-none focus:border-[#c026d3] focus:ring-1 focus:ring-[#c026d3] transition-all text-[13px] md:text-[14.5px]"
               />
 
               {/* Record Voice Note Button */}
               <button
                 onClick={startRecording}
-                className="text-[#84799f] hover:text-[#ff2d55] hover:bg-[#ff2d55]/10 w-[46px] h-[46px] rounded-full border border-[#2a1a45] hover:border-[#ff2d55]/30 flex items-center justify-center shrink-0 cursor-pointer transition-all active:scale-95 shadow-sm"
+                className="text-[#84799f] hover:text-[#c026d3] hover:bg-[#c026d3]/10 w-[36px] h-[36px] md:w-[46px] md:h-[46px] rounded-full border border-[#2a1a45] hover:border-[#c026d3]/30 flex items-center justify-center shrink-0 cursor-pointer transition-all active:scale-95 shadow-sm"
                 title="Record Voice Note"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1988,9 +1988,10 @@ function App() {
               {/* Camera Button */}
               <button
                 onClick={openCamera}
-                className="text-[#84799f] hover:text-[#10b981] hover:bg-[#10b981]/10 w-[46px] h-[46px] rounded-full border border-[#2a1a45] hover:border-[#10b981]/30 flex items-center justify-center shrink-0 cursor-pointer transition-all active:scale-95 shadow-sm"
+                className="text-[#84799f] hover:text-[#c026d3] hover:bg-[#c026d3]/10 w-[36px] h-[36px] md:w-[46px] md:h-[46px] rounded-full border border-[#2a1a45] hover:border-[#c026d3]/30 flex items-center justify-center shrink-0 cursor-pointer transition-all active:scale-95 shadow-sm"
                 title="Take a Photo"
               >
+
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
                   <circle cx="12" cy="13" r="4"></circle>
