@@ -320,13 +320,16 @@ function App() {
 
       console.log("Connecting to WebSocket...");
       // Auto-detect wss:// on HTTPS (production) or ws:// on HTTP (localhost)
-      // VITE_WS_URL can override for local dev, but on production we derive from page URL
-      const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      // IMPORTANT: use window.location explicitly — NOT the React Router `location`
+      // (useLocation() shadows window.location and has no .protocol or .host)
+      const pageProtocol = window.location.protocol;
+      const pageHost = window.location.host;
+      const wsProtocol = pageProtocol === 'https:' ? 'wss:' : 'ws:';
       const wsBase = import.meta.env.VITE_WS_URL;
-      // Only use env var if it's explicitly set AND matches current protocol safety
-      const wsUrl = (wsBase && !wsBase.includes('undefined'))
+      // Only use env var if it's explicitly set and not the literal string "undefined"
+      const wsUrl = (wsBase && wsBase !== 'undefined' && !wsBase.includes('undefined'))
         ? wsBase.replace(/^ws:\/\//, `${wsProtocol}//`).replace(/^wss:\/\//, `${wsProtocol}//`)
-        : `${wsProtocol}//${location.host}`;
+        : `${wsProtocol}//${pageHost}`;
       socket = new WebSocket(wsUrl);
       socketRef.current = socket;
 
