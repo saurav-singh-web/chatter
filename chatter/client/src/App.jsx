@@ -319,10 +319,15 @@ function App() {
       if (!isComponentMounted) return;
 
       console.log("Connecting to WebSocket...");
-      socket = new WebSocket(
-        import.meta.env.VITE_WS_URL ||
-        `ws${location.protocol === 'https:' ? 's' : ''}://${location.host}`
-      );
+      // Auto-detect wss:// on HTTPS (production) or ws:// on HTTP (localhost)
+      // VITE_WS_URL can override for local dev, but on production we derive from page URL
+      const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsBase = import.meta.env.VITE_WS_URL;
+      // Only use env var if it's explicitly set AND matches current protocol safety
+      const wsUrl = (wsBase && !wsBase.includes('undefined'))
+        ? wsBase.replace(/^ws:\/\//, `${wsProtocol}//`).replace(/^wss:\/\//, `${wsProtocol}//`)
+        : `${wsProtocol}//${location.host}`;
+      socket = new WebSocket(wsUrl);
       socketRef.current = socket;
 
       socket.onopen = () => {
