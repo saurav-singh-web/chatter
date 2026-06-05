@@ -1,51 +1,46 @@
-const CACHE_NAME = "chatter-v1";
+// Chatter Service Worker
+// Handles push notifications ONLY — does NOT intercept any fetch/cache requests
+// to avoid breaking asset loading on production (Render/Vercel etc.)
 
-// Install — skip waiting
-self.addEventListener("install", (event) => {
-  console.log("Chatter SW: Installed");
+// Install — skip waiting so the new SW takes over immediately
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
-// Activate — clean old caches
+// Activate — claim all clients immediately, clean nothing (no caches used)
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
-      )
-    )
-  );
-  self.clients.claim();
+  event.waitUntil(self.clients.claim());
 });
 
-// Fetch — only cache in production, skip all dev/API requests
-self.addEventListener("fetch", (event) => {
-  const url = event.request.url;
+// DO NOT add a fetch handler here.
+// Intercepting fetch causes the SW to interfere with JS bundle loading,
+// API calls, and other network requests — leading to a black screen.
+// All network requests go directly to the server (default browser behaviour).
 
-  // skip everything that's not a real page/asset request
-  if (
-    url.includes("ws://") ||
-    url.includes("wss://") ||
-    url.includes("localhost:8080") ||
-    url.includes("@vite") ||
-    url.includes("@react-refresh") ||
-    url.includes("hot-update") ||
-    url.includes("src/") ||
-    url.includes("node_modules")
-  ) {
-    return; // let it go to network normally
+// Handle push notifications from server
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (e) {
+    data = { title: "Chatter", body: event.data ? event.data.text() : "New message" };
   }
 
-  event.respondWith(
-    fetch(event.request).catch(() => {
-      return caches.match("/index.html");
-    })
-  );
+  const title = data.title || "Chatter";
+  const options = {
+    body: data.body || "You have a new message",
+    icon: data.icon || "/icon-192.png",
+    badge: "/icon-192.png",
+    tag: data.tag || "chatter-notification",
+    renotify: true,
+    data: data.data || {},
+    vibrate: [200, 100, 200],
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// Handle notification click
+// Handle notification click — open or focus the app
 self.addEventListener("notificationclick", (event) => {
   const notification = event.notification;
   notification.close();
@@ -56,19 +51,17 @@ self.addEventListener("notificationclick", (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      // 1. Try to find an existing open window/tab of the app
+      // Focus existing open window if any
       for (const client of clientList) {
         if (client.url.startsWith(self.location.origin) && "focus" in client) {
-          // Focus the window
           client.focus();
-          // Send a message to the client tab to navigate to the chat
           if (sender && "postMessage" in client) {
             client.postMessage({ type: "navigate", chat: sender });
           }
           return;
         }
       }
-      // 2. If no window is open, open a new one
+      // Otherwise open a new window
       if (self.clients.openWindow) {
         return self.clients.openWindow(targetUrl);
       }
