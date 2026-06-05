@@ -44,3 +44,34 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
+
+// Handle notification click
+self.addEventListener("notificationclick", (event) => {
+  const notification = event.notification;
+  notification.close();
+
+  const sender = notification.data ? notification.data.sender : null;
+  const targetPath = sender ? `/chat/${sender}` : "/chats";
+  const targetUrl = new URL(targetPath, self.location.origin).href;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      // 1. Try to find an existing open window/tab of the app
+      for (const client of clientList) {
+        if (client.url.startsWith(self.location.origin) && "focus" in client) {
+          // Focus the window
+          client.focus();
+          // Send a message to the client tab to navigate to the chat
+          if (sender && "postMessage" in client) {
+            client.postMessage({ type: "navigate", chat: sender });
+          }
+          return;
+        }
+      }
+      // 2. If no window is open, open a new one
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
+});

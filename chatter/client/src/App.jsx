@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Routes, Route, useNavigate, Navigate } from 'react-router-dom'
+import { Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom'
 import './App.css'
 import blurBg from './assets/blur.jpeg'
 import clearBg from './assets/clear.jpeg'
@@ -77,11 +77,12 @@ function MessageTicks({ msg, username }) {
 
 function App() {
   const navigate = useNavigate();
+  const location = useLocation();
   const socketRef = useRef(null);
   const audioCtxRef = useRef(null);
-  const [username, setUsername] = useState(() => sessionStorage.getItem("chatter_user") || "");
-  const [avatar, setAvatar] = useState(() => sessionStorage.getItem("chatter_avatar") || "");
-  const [joined, setJoined] = useState(() => !!sessionStorage.getItem("chatter_user"));
+  const [username, setUsername] = useState(() => localStorage.getItem("chatter_user") || "");
+  const [avatar, setAvatar] = useState(() => localStorage.getItem("chatter_avatar") || "");
+  const [joined, setJoined] = useState(() => !!localStorage.getItem("chatter_user"));
   const [messages, setMessages] = useState({ general: [], });
   const [text, setText] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
@@ -94,11 +95,12 @@ function App() {
   const bottomRef = useRef(null);
   const [typingUser, setTypingUser] = useState("");
   const typingTimeoutRef = useRef(null);
+  const lastTypingSentRef = useRef(0);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
-  const [activeChat, setActiveChat] = useState(() => sessionStorage.getItem("chatter_active_chat") || "general");
+  const [activeChat, setActiveChat] = useState(() => localStorage.getItem("chatter_active_chat") || "general");
   const [unreadCounts, setUnreadCounts] = useState({});
-  const activeChatRef = useRef(sessionStorage.getItem("chatter_active_chat") || "general");
+  const activeChatRef = useRef(localStorage.getItem("chatter_active_chat") || "general");
   const messagesContainerRef = useRef(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const isPrependingRef = useRef(false);
@@ -222,25 +224,79 @@ function App() {
   const triggerLocalNotification = useCallback((title, body, sender) => {
     if (!("Notification" in window) || Notification.permission !== "granted") return;
 
-    const notification = new Notification(title, {
+    const options = {
       body,
       icon: "/favicon.svg",
+      badge: "/favicon.svg",
       tag: `chat-${sender}`,
+      data: { sender },
       requireInteraction: false
-    });
-
-    notification.onclick = () => {
-      window.focus();
-      setActiveChat(sender);
-      navigate(`/chat/${sender}`);
-      notification.close();
     };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.showNotification(title, options);
+      }).catch((err) => {
+        console.error("SW not ready for notification:", err);
+        try {
+          new Notification(title, options);
+        } catch (e) {
+          console.error("Local notification constructor error:", e);
+        }
+      });
+    } else {
+      try {
+        const notification = new Notification(title, options);
+        notification.onclick = () => {
+          window.focus();
+          navigate(`/chat/${sender}`);
+          notification.close();
+        };
+      } catch (e) {
+        console.error("Local notification constructor error:", e);
+      }
+    }
   }, [navigate]);
 
   useEffect(() => {
     activeChatRef.current = activeChat;
-    sessionStorage.setItem("chatter_active_chat", activeChat);
+    localStorage.setItem("chatter_active_chat", activeChat);
   }, [activeChat]);
+
+  // Sync active chat state when the URL path changes directly
+  useEffect(() => {
+    if (!joined) return;
+
+    const match = location.pathname.match(/^\/chat\/([^/]+)$/);
+    if (match) {
+      const chatId = match[1];
+      if (chatId !== activeChat) {
+        setActiveChat(chatId);
+        setUnreadCounts((prev) => ({ ...prev, [chatId]: 0 }));
+        if (chatId !== "general") {
+          fetchPrivateHistory(chatId);
+        }
+      }
+    }
+  }, [location.pathname, joined, activeChat]);
+
+  // Handle click navigation messages sent from Service Worker
+  useEffect(() => {
+    const handleSWMessage = (event) => {
+      if (event.data && event.data.type === "navigate") {
+        const chat = event.data.chat;
+        navigate(`/chat/${chat}`);
+      }
+    };
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener("message", handleSWMessage);
+    }
+    return () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener("message", handleSWMessage);
+      }
+    };
+  }, [navigate]);
   const [authMode, setAuthMode] = useState("login");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
@@ -255,215 +311,252 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const socket = new WebSocket(
-      import.meta.env.VITE_WS_URL ||
-      `ws${location.protocol === 'https:' ? 's' : ''}://${location.host}`
-    );
-    socketRef.current = socket;
+    let socket;
+    let reconnectTimeout = null;
+    let isComponentMounted = true;
 
-    socket.onopen = () => {
-      console.log("Connected to Chatter server!");
+    function connect() {
+      if (!isComponentMounted) return;
 
-      const savedUser = sessionStorage.getItem("chatter_user");
-      const isFreshLogin = sessionStorage.getItem("chatter_fresh_login");
+      console.log("Connecting to WebSocket...");
+      socket = new WebSocket(
+        import.meta.env.VITE_WS_URL ||
+        `ws${location.protocol === 'https:' ? 's' : ''}://${location.host}`
+      );
+      socketRef.current = socket;
 
-      if (savedUser) {
-        setUsername(savedUser);
-        setAvatar(sessionStorage.getItem("chatter_avatar") || "");
-        usernameRef.current = savedUser;
-        setJoined(true);
-        socket.send(JSON.stringify({ type: "join", username: savedUser, showNotification: isFreshLogin === "true" }));
+      socket.onopen = () => {
+        console.log("Connected to Chatter server! ✅");
 
-        sessionStorage.removeItem("chatter_fresh_login");
+        const savedUser = localStorage.getItem("chatter_user");
+        const isFreshLogin = localStorage.getItem("chatter_fresh_login");
 
-        const currentActiveChat = sessionStorage.getItem("chatter_active_chat") || "general";
-        if (currentActiveChat !== "general") {
-          fetchPrivateHistory(currentActiveChat);
-        }
-      }
-    };
+        if (savedUser) {
+          setUsername(savedUser);
+          setAvatar(localStorage.getItem("chatter_avatar") || "");
+          usernameRef.current = savedUser;
+          setJoined(true);
+          socket.send(JSON.stringify({ type: "join", username: savedUser, showNotification: isFreshLogin === "true" }));
 
-    socket.onmessage = async (event) => {
-      const raw = event.data instanceof Blob ? await event.data.text() : event.data;
-      if (!raw || raw.trim() === "") return;
+          localStorage.removeItem("chatter_fresh_login");
 
-      const parsed = JSON.parse(raw);
-      console.log("All incoming:", parsed);
-
-      if (parsed.type === "messages_read") {
-        console.log("🔵 MESSAGES READ EVENT:", parsed);
-      }
-
-      if (parsed.type === "users_list") {
-        setOnlineUsers(parsed.users);
-      } else if (parsed.type === "all_users_list") {
-        setAllUsers(parsed.users);
-      } else if (parsed.type === "typing") {
-        setTypingUser(parsed.username);
-        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = setTimeout(() => setTypingUser(""), 2000);
-      } else if (parsed.type === "history") {
-        setMessages((prev) => ({ ...prev, general: parsed.messages }));
-      } else if (parsed.type === "message") {
-        setMessages((prev) => ({
-          ...prev,
-          general: [...(prev.general || []), parsed],
-        }));
-        if (parsed.username !== usernameRef.current) {
-          const notifText = parsed.text
-            ? `${parsed.username}: ${parsed.text}`
-            : parsed.image
-              ? `${parsed.username}: 📷 Sent a photo`
-              : parsed.audio
-                ? `${parsed.username}: 🎙️ Sent a voice note`
-                : `${parsed.username}: 📁 Shared a file`;
-          if (document.visibilityState === "hidden") {
-            triggerLocalNotification(`New message in #general`, notifText, "general");
-          } else {
-            playNotificationSound();
-            if (activeChatRef.current !== "general") {
-              triggerLocalNotification(`New message in #general`, notifText, "general");
-            }
+          const currentActiveChat = localStorage.getItem("chatter_active_chat") || "general";
+          if (currentActiveChat !== "general") {
+            fetchPrivateHistory(currentActiveChat);
           }
         }
-      } else if (parsed.type === "message_delivered") {
-        setMessages((prev) => {
-          const updated = { ...prev };
-          Object.keys(updated).forEach((chatKey) => {
-            updated[chatKey] = (updated[chatKey] || []).map((m) =>
-              m._id === parsed._id ? { ...m, received: true } : m
-            );
-          });
-          return updated;
-        });
-      }
-      else if (parsed.type === "private_message") {
-        const chatKey = parsed.from === usernameRef.current ? parsed.to : parsed.from;
+      };
 
-        setMessages((prev) => {
-          const existingMessages = prev[chatKey] || [];
-          const alreadyExists = existingMessages.some((m) => m._id === parsed._id);
+      socket.onmessage = async (event) => {
+        const raw = event.data instanceof Blob ? await event.data.text() : event.data;
+        if (!raw || raw.trim() === "") return;
 
-          return {
+        const parsed = JSON.parse(raw);
+        console.log("All incoming:", parsed);
+
+        if (parsed.type === "auth_invalid") {
+          console.warn("Authentication failed or user deleted:", parsed.error);
+          localStorage.removeItem("chatter_user");
+          localStorage.removeItem("chatter_avatar");
+          localStorage.removeItem("chatter_fresh_login");
+          localStorage.removeItem("chatter_active_chat");
+          setJoined(false);
+          setUsername("");
+          setPassword("");
+          setMessages({ general: [] });
+          setActiveChat("general");
+          setOnlineUsers([]);
+          navigate("/");
+          return;
+        }
+
+        if (parsed.type === "messages_read") {
+          console.log("🔵 MESSAGES READ EVENT:", parsed);
+        }
+
+        if (parsed.type === "users_list") {
+          setOnlineUsers(parsed.users);
+        } else if (parsed.type === "all_users_list") {
+          setAllUsers(parsed.users);
+        } else if (parsed.type === "typing") {
+          setTypingUser(parsed.username);
+          if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+          typingTimeoutRef.current = setTimeout(() => setTypingUser(""), 2000);
+        } else if (parsed.type === "history") {
+          setMessages((prev) => ({ ...prev, general: parsed.messages }));
+        } else if (parsed.type === "message") {
+          setMessages((prev) => ({
             ...prev,
-            [chatKey]: alreadyExists
-              ? existingMessages
-              : [...existingMessages, { ...parsed, readBy: parsed.readBy || [] }],
-          };
-        });
-
-        // ✅ Auto mark as read if:
-        // 1. Message is FROM someone else (not me)
-        // 2. That chat is currently open
-        // 3. Tab is visible and focused
-        if (
-          parsed.from !== usernameRef.current &&
-          activeChatRef.current === parsed.from &&
-          document.visibilityState === "visible"
-        ) {
-          console.log("✅ Chat is open — auto marking as read immediately");
-          if (socketRef.current?.readyState === 1) {
-            socketRef.current.send(JSON.stringify({
-              type: "mark_read",
-              chatWith: parsed.from,
-            }));
+            general: [...(prev.general || []), parsed],
+          }));
+          if (parsed.username !== usernameRef.current) {
+            const notifText = parsed.text
+              ? `${parsed.username}: ${parsed.text}`
+              : parsed.image
+                ? `${parsed.username}: 📷 Sent a photo`
+                : parsed.audio
+                  ? `${parsed.username}: 🎙️ Sent a voice note`
+                  : `${parsed.username}: 📁 Shared a file`;
+            if (document.visibilityState === "hidden") {
+              triggerLocalNotification(`New message in #general`, notifText, "general");
+            } else {
+              playNotificationSound();
+              if (activeChatRef.current !== "general") {
+                triggerLocalNotification(`New message in #general`, notifText, "general");
+              }
+            }
           }
+        } else if (parsed.type === "message_delivered") {
+          setMessages((prev) => {
+            const updated = { ...prev };
+            Object.keys(updated).forEach((chatKey) => {
+              updated[chatKey] = (updated[chatKey] || []).map((m) =>
+                m._id === parsed._id ? { ...m, received: true } : m
+              );
+            });
+            return updated;
+          });
         }
+        else if (parsed.type === "private_message") {
+          const chatKey = parsed.from === usernameRef.current ? parsed.to : parsed.from;
 
-        // notifications and unread count
-        if (parsed.from !== usernameRef.current) {
-          const notifText = parsed.text
-            ? parsed.text
-            : parsed.image ? "📷 Sent a photo"
-              : parsed.audio ? "🎙️ Sent a voice note"
-                : "📁 Shared a file";
+          setMessages((prev) => {
+            const existingMessages = prev[chatKey] || [];
+            const alreadyExists = existingMessages.some((m) => m._id === parsed._id);
 
-          if (document.visibilityState === "hidden") {
-            triggerLocalNotification(`Message from @${parsed.from}`, notifText, parsed.from);
-          } else {
-            playNotificationSound();
-            if (activeChatRef.current !== parsed.from) {
-              triggerLocalNotification(`Message from @${parsed.from}`, notifText, parsed.from);
+            return {
+              ...prev,
+              [chatKey]: alreadyExists
+                ? existingMessages
+                : [...existingMessages, { ...parsed, readBy: parsed.readBy || [] }],
+            };
+          });
+
+          // ✅ Auto mark as read if:
+          // 1. Message is FROM someone else (not me)
+          // 2. That chat is currently open
+          // 3. Tab is visible and focused
+          if (
+            parsed.from !== usernameRef.current &&
+            activeChatRef.current === parsed.from &&
+            document.visibilityState === "visible"
+          ) {
+            console.log("✅ Chat is open — auto marking as read immediately");
+            if (socketRef.current?.readyState === 1) {
+              socketRef.current.send(JSON.stringify({
+                type: "mark_read",
+                chatWith: parsed.from,
+              }));
             }
           }
 
-          // only increment unread if chat is NOT open
-          if (activeChatRef.current !== chatKey) {
+          // notifications and unread count
+          if (parsed.from !== usernameRef.current) {
+            const notifText = parsed.text
+              ? parsed.text
+              : parsed.image ? "📷 Sent a photo"
+                : parsed.audio ? "🎙️ Sent a voice note"
+                  : "📁 Shared a file";
+
+            if (document.visibilityState === "hidden") {
+              triggerLocalNotification(`Message from @${parsed.from}`, notifText, parsed.from);
+            } else {
+              playNotificationSound();
+              if (activeChatRef.current !== parsed.from) {
+                triggerLocalNotification(`Message from @${parsed.from}`, notifText, parsed.from);
+              }
+            }
+
+            // only increment unread if chat is NOT open
+            if (activeChatRef.current !== chatKey) {
+              setUnreadCounts((prev) => ({
+                ...prev,
+                [chatKey]: (prev[chatKey] || 0) + 1,
+              }));
+            }
+          }
+        } else if (parsed.type === "notification") {
+          setMessages((prev) => ({
+            ...prev,
+            general: [...(prev.general || []), parsed],
+          }));
+        } else if (parsed.type === "message_edited") {
+          setMessages((prev) => {
+            const chatKey = parsed.chatType === "message" ? "general" : activeChatRef.current;
+            return {
+              ...prev,
+              [chatKey]: (prev[chatKey] || []).map((m) =>
+                m._id === parsed._id ? { ...m, text: parsed.text, edited: true } : m
+              ),
+            };
+          });
+        } else if (parsed.type === "message_deleted") {
+          setMessages((prev) => {
+            const chatKey = parsed.chatType === "message" ? "general" : activeChatRef.current;
+            return {
+              ...prev,
+              [chatKey]: (prev[chatKey] || []).filter((m) => m._id !== parsed._id),
+            };
+          });
+        } else if (parsed.type === "message_sent") {
+          setMessages((prev) => {
+            const updated = { ...prev };
+            Object.keys(updated).forEach((chatKey) => {
+              updated[chatKey] = (updated[chatKey] || []).map((m) =>
+                m._id === parsed.tempId
+                  ? { ...m, _id: parsed._id, delivered: true, readBy: m.readBy || [] }
+                  : m
+              );
+            });
+            return updated;
+          });
+        } else if (parsed.type === "messages_read") {
+          console.log("messages_read received:", parsed);
+
+          const isMeReader = parsed.by === usernameRef.current;
+          const chatKey = isMeReader ? parsed.chatWith : parsed.by;
+
+          if (isMeReader) {
             setUnreadCounts((prev) => ({
               ...prev,
-              [chatKey]: (prev[chatKey] || 0) + 1,
+              [chatKey]: 0,
             }));
           }
-        }
-      } else if (parsed.type === "notification") {
-        setMessages((prev) => ({
-          ...prev,
-          general: [...(prev.general || []), parsed],
-        }));
-      } else if (parsed.type === "message_edited") {
-        setMessages((prev) => {
-          const chatKey = parsed.chatType === "message" ? "general" : activeChatRef.current;
-          return {
-            ...prev,
-            [chatKey]: (prev[chatKey] || []).map((m) =>
-              m._id === parsed._id ? { ...m, text: parsed.text, edited: true } : m
-            ),
-          };
-        });
-      } else if (parsed.type === "message_deleted") {
-        setMessages((prev) => {
-          const chatKey = parsed.chatType === "message" ? "general" : activeChatRef.current;
-          return {
-            ...prev,
-            [chatKey]: (prev[chatKey] || []).filter((m) => m._id !== parsed._id),
-          };
-        });
-      } else if (parsed.type === "message_sent") {
-        setMessages((prev) => {
-          const updated = { ...prev };
-          Object.keys(updated).forEach((chatKey) => {
-            updated[chatKey] = (updated[chatKey] || []).map((m) =>
-              m._id === parsed.tempId
-                ? { ...m, _id: parsed._id, delivered: true, readBy: m.readBy || [] }
-                : m
-            );
+
+          setMessages((prev) => {
+            return {
+              ...prev,
+              [chatKey]: (prev[chatKey] || []).map((m) => {
+                const shouldMarkRead = isMeReader
+                  ? (m.from === chatKey || m.username === chatKey)
+                  : (m.from === usernameRef.current || m.username === usernameRef.current);
+
+                if (shouldMarkRead) {
+                  return { ...m, readBy: [...new Set([...(m.readBy || []), parsed.by])] };
+                }
+                return m;
+              }),
+            };
           });
-          return updated;
-        });
-      } else if (parsed.type === "messages_read") {
-        console.log("messages_read received:", parsed);
+        }
+      };
 
-        setMessages((prev) => {
-          // chatKey from MY perspective is who READ my messages
-          const chatKey = parsed.by; // "tt" — this IS correct as pp's chat key for tt
+      socket.onclose = () => {
+        console.log("Disconnected from server ❌");
+        if (isComponentMounted) {
+          console.log("Scheduling reconnect in 3s...");
+          reconnectTimeout = setTimeout(connect, 3000);
+        }
+      };
+    }
 
-          return {
-            ...prev,
-            [chatKey]: (prev[chatKey] || []).map((m) => {
-              // mark MY messages (that I sent TO tt) as read
-              const isMine =
-                (m.from === usernameRef.current || m.username === usernameRef.current);
-
-              if (isMine) {
-                console.log("✅ Marking as read:", m.text);
-                return { ...m, readBy: [...new Set([...(m.readBy || []), parsed.by])] };
-              }
-              return m;
-            }),
-          };
-        });
-      }
-
-    };
-
-    socket.onclose = () => {
-      console.log("Disconnected from server");
-    };
+    connect();
 
     return () => {
-      socket.close();
+      isComponentMounted = false;
+      if (socket) socket.close();
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };
-
   }, [triggerLocalNotification, playNotificationSound]);
 
   useEffect(() => {
@@ -532,7 +625,7 @@ function App() {
         const res = await fetch(endpoint);
         const olderMessages = await res.json();
 
-        if (olderMessages.length > 0) {
+        if (Array.isArray(olderMessages) && olderMessages.length > 0) {
           isPrependingRef.current = true;
           const previousHeight = messagesContainerRef.current.scrollHeight;
 
@@ -555,7 +648,22 @@ function App() {
   };
 
   const handleAuth = async () => {
-    if (!username.trim() || !password.trim()) return;
+    if (!username.trim() || !password.trim()) {
+      setAuthError("All fields are required");
+      return;
+    }
+
+    if (authMode === "register") {
+      const usernameRegex = /^[a-zA-Z0-9_-]{3,15}$/;
+      if (!usernameRegex.test(username)) {
+        setAuthError("Username must be 3-15 characters and contain only letters, numbers, underscores, or hyphens");
+        return;
+      }
+      if (password.length < 6) {
+        setAuthError("Password must be at least 6 characters long");
+        return;
+      }
+    }
 
     const endpoint = authMode === "login" ? "/login" : "/register";
 
@@ -575,9 +683,9 @@ function App() {
       }
 
 
-      sessionStorage.setItem("chatter_user", data.username);
-      sessionStorage.setItem("chatter_avatar", data.avatar || "");
-      sessionStorage.setItem("chatter_fresh_login", "true");
+      localStorage.setItem("chatter_user", data.username);
+      localStorage.setItem("chatter_avatar", data.avatar || "");
+      localStorage.setItem("chatter_fresh_login", "true");
 
       setUsername(data.username);   // set state
       setAvatar(data.avatar || "");
@@ -617,7 +725,7 @@ function App() {
         const data = await res.json();
         if (data.success) {
           setAvatar(data.avatar);
-          sessionStorage.setItem("chatter_avatar", data.avatar);
+          localStorage.setItem("chatter_avatar", data.avatar);
         } else {
           console.error("Avatar upload failed:", data.error);
         }
@@ -811,14 +919,18 @@ function App() {
       const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/history/private?user1=${usernameRef.current}&user2=${otherUser}`
       );
       const data = await res.json();
-      setMessages((prev) => ({
-        ...prev,
-        [otherUser]: data,
-      }));
+      if (Array.isArray(data)) {
+        setMessages((prev) => ({
+          ...prev,
+          [otherUser]: data,
+        }));
+      } else {
+        console.error("Invalid history response (not an array):", data);
+      }
     } catch (err) {
       console.error("Error fetching private history:", err);
     }
-  };
+  }
   const handleRightClick = (e, msg) => {
     e.preventDefault(); // stop browser context menu
     setContextMenu({
@@ -1170,9 +1282,10 @@ function App() {
             if (socketRef.current?.readyState === 1) {
               socketRef.current.send(JSON.stringify({ type: "logout" }));
             }
-            sessionStorage.removeItem("chatter_user");
-            sessionStorage.removeItem("chatter_fresh_login");
-            sessionStorage.removeItem("chatter_active_chat");
+            localStorage.removeItem("chatter_user");
+            localStorage.removeItem("chatter_avatar");
+            localStorage.removeItem("chatter_fresh_login");
+            localStorage.removeItem("chatter_active_chat");
             setJoined(false);
             setUsername("");
             setPassword("");
@@ -1964,8 +2077,12 @@ function App() {
                 value={text}
                 onChange={(e) => {
                   setText(e.target.value);
-                  if (socketRef.current?.readyState === 1) {
-                    socketRef.current.send(JSON.stringify({ type: "typing", username }));
+                  const now = Date.now();
+                  if (now - lastTypingSentRef.current > 2000) {
+                    if (socketRef.current?.readyState === 1) {
+                      socketRef.current.send(JSON.stringify({ type: "typing", username }));
+                      lastTypingSentRef.current = now;
+                    }
                   }
                 }}
                 onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}

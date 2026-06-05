@@ -47,7 +47,16 @@ app.get("/history/private", async (req, res) => {
 
 app.post("/register", express.json(), async (req, res) => {
   const { username, password } = req.body;
-   console.log("Register attempt:", username);
+  console.log("Register attempt:", username);
+
+  const usernameRegex = /^[a-zA-Z0-9_-]{3,15}$/;
+  if (!username || !usernameRegex.test(username)) {
+    return res.status(400).json({ error: "Username must be 3-15 characters and contain only letters, numbers, underscores, or hyphens" });
+  }
+
+  if (!password || password.trim().length < 6) {
+    return res.status(400).json({ error: "Password must be at least 6 characters long" });
+  }
 
   try {
     // check if username already exists
@@ -120,58 +129,75 @@ wss.on("connection", (ws) => {
   }
 
   if (parsed.type === "join") {
-    // Disconnect any old hanging socket for the same username to prevent duplicate presence
-    clients.forEach((value, clientWs) => {
-      if (clientWs !== ws && value.username === parsed.username) {
-        console.log(`Closing duplicate old socket connection for ${parsed.username}`);
-        try {
-          clientWs.close();
-        } catch (e) {
-          console.error("Error closing old socket:", e);
+    // Verify user exists in database to prevent ghost/invalid sessions (Bug Fix)
+    User.findOne({ username: parsed.username })
+      .then((userExists) => {
+        if (!userExists) {
+          console.log(`Join rejected: User "${parsed.username}" not found in DB.`);
+          ws.send(JSON.stringify({
+            type: "auth_invalid",
+            error: "Session is invalid. User not found in database."
+          }));
+          return;
         }
-        clients.delete(clientWs);
-      }
-    });
 
-    clients.set(ws, { username: parsed.username }); 
-    console.log(`${parsed.username} joined`);
-    console.log(`Total clients: ${clients.size}`);
+        // Disconnect any old hanging socket for the same username to prevent duplicate presence
+        clients.forEach((value, clientWs) => {
+          if (clientWs !== ws && value.username === parsed.username) {
+            console.log(`Closing duplicate old socket connection for ${parsed.username}`);
+            try {
+              clientWs.close();
+            } catch (e) {
+              console.error("Error closing old socket:", e);
+            }
+            clients.delete(clientWs);
+          }
+        });
 
-    Message.find({ type: "message" })
-    .sort({ timestamp: -1 })
-    .limit(20)
-    .then((history) => {
-      if (history.length > 0) {
+        clients.set(ws, { username: parsed.username }); 
+        console.log(`${parsed.username} joined`);
+        console.log(`Total clients: ${clients.size}`);
+
+        Message.find({ type: "message" })
+        .sort({ timestamp: -1 })
+        .limit(20)
+        .then((history) => {
+          if (history.length > 0) {
+            ws.send(JSON.stringify({
+              type: "history",
+              messages: history.reverse(),
+            }));
+          }
+        })
+        .catch((err) => console.error("Error loading history:", err));
+
         ws.send(JSON.stringify({
-          type: "history",
-          messages: history.reverse(),
+          type: "users_list",
+          users: getUsersList(),
         }));
-      }
-    })
-    .catch((err) => console.error("Error loading history:", err));
-
-    ws.send(JSON.stringify({
-    type: "users_list",
-    users: getUsersList(),
-  }));
-  
-  broadcastAllUsers();
-  
-    if(parsed.showNotification){
-      broadcast(ws, {
-        type: "notification",
-        text: `${parsed.username} joined the chat`,
-        timestamp: Date.now(),
+      
+        broadcastAllUsers();
+      
+        if(parsed.showNotification){
+          broadcast(ws, {
+            type: "notification",
+            text: `${parsed.username} joined the chat`,
+            timestamp: Date.now(),
+          });
+        }
+        broadcastAll({
+          type: "users_list",
+          users: getUsersList(),
+        });
+      })
+      .catch((err) => {
+        console.error("Error verifying user on join:", err);
       });
-    }
-    broadcastAll({
-      type: "users_list",
-      users: getUsersList(),
-    });
-}
+  }
 
 if (parsed.type === "message") {
   const sender = clients.get(ws);
+  if (!sender) return;
   console.log(`${sender.username}: ${parsed.text}`);
 
   const message = new Message({
@@ -186,37 +212,23 @@ if (parsed.type === "message") {
   });
 
   message.save()
-    message.save()
   .then(() => {
-    console.log("Private message saved ✅");
+    console.log("Group message saved ✅");
 
-    clients.forEach((value, clientWs) => {
-      if (value.username === parsed.to && clientWs.readyState === 1) {
-        
-        // send to recipient
-        clientWs.send(JSON.stringify({
-          _id: message._id,
-          type: "private_message",
-          from: sender.username,
-          to: parsed.to,
-          text: parsed.text,
-          image: message.image,
-          audio: message.audio,
-          file: message.file,
-          timestamp: message.timestamp,
-          replyTo: message.replyTo,
-          readBy: message.readBy || [],
-        }));
-
-        // notify SENDER that message was delivered
-        ws.send(JSON.stringify({
-          type: "message_delivered",
-          _id: message._id,
-        }));
-      }
+    // Broadcast the group message to everyone
+    broadcastAll({
+      _id: message._id,
+      type: "message",
+      username: sender.username,
+      text: message.text,
+      image: message.image,
+      audio: message.audio,
+      file: message.file,
+      timestamp: message.timestamp,
+      replyTo: message.replyTo,
     });
   })
-    .catch((err) => console.error("Error saving message:", err));
+  .catch((err) => console.error("Error saving message:", err));
 
   ws.send(JSON.stringify({
     _id: message._id,
@@ -249,7 +261,31 @@ if (parsed.type === "private_message") {
       console.log("Private message saved ✅");
       
       clients.forEach((value, clientWs) => {
+        // Send to recipient connection(s)
         if (value.username === parsed.to && clientWs.readyState === 1) {
+          clientWs.send(JSON.stringify({
+            _id: message._id,
+            type: "private_message",
+            from: sender.username,
+            to: parsed.to,
+            text: parsed.text,
+            image: message.image,
+            audio: message.audio,
+            file: message.file,
+            timestamp: message.timestamp,
+            replyTo: message.replyTo,
+            readBy: message.readBy || [],
+          }));
+
+          // Notify sender connection that message was delivered (Bug D)
+          ws.send(JSON.stringify({
+            type: "message_delivered",
+            _id: message._id,
+          }));
+        }
+
+        // Sync to sender's OTHER active connections (Issue H)
+        if (value.username === sender.username && clientWs !== ws && clientWs.readyState === 1) {
           clientWs.send(JSON.stringify({
             _id: message._id,
             type: "private_message",
@@ -342,7 +378,7 @@ if (parsed.type === "mark_read") {
     console.log(`🔵 Updated ${result.modifiedCount} messages as read`);
 
     clients.forEach((value, clientWs) => {
-      console.log(`🔵 Checking client: ${value.username} === ${parsed.chatWith}`); 
+      // 1. Notify the sender (parsed.chatWith)
       if (value.username === parsed.chatWith && clientWs.readyState === 1) {
         console.log(`🔵 Notifying ${parsed.chatWith} that messages were read`); 
         clientWs.send(JSON.stringify({
@@ -350,6 +386,15 @@ if (parsed.type === "mark_read") {
           by: reader.username,
           chatWith: parsed.chatWith,
         }));  
+      }
+      // 2. Notify other connections of the reader (so they clear their badges/sync state) (Issue H)
+      if (value.username === reader.username && clientWs !== ws && clientWs.readyState === 1) {
+        console.log(`🔵 Notifying reader's other connection (${reader.username}) of read status`);
+        clientWs.send(JSON.stringify({
+          type: "messages_read",
+          by: reader.username,
+          chatWith: parsed.chatWith,
+        }));
       }
     });
   }).catch((err) => console.error("Mark read error:", err));
